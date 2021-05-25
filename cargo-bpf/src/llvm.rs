@@ -4,12 +4,12 @@ use llvm_sys::core::*;
 use llvm_sys::debuginfo::LLVMStripModuleDebugInfo;
 use llvm_sys::ir_reader::LLVMParseIRInContext;
 use llvm_sys::prelude::*;
+use llvm_sys::support::LLVMParseCommandLineOptions;
 use llvm_sys::target::*;
 use llvm_sys::target_machine::*;
 use llvm_sys::transforms::ipo::LLVMAddAlwaysInlinerPass;
 use llvm_sys::transforms::pass_manager_builder::*;
 use llvm_sys::{LLVMAttributeFunctionIndex, LLVMInlineAsmDialect::*};
-use llvm_sys::support::LLVMParseCommandLineOptions;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::path::Path;
@@ -82,13 +82,7 @@ unsafe fn inject_exit_call(context: LLVMContextRef, func: LLVMValueRef, builder:
     let last = LLVMGetLastInstruction(block);
     LLVMPositionBuilderBefore(builder, last);
     let c_str = CString::new("").unwrap();
-    LLVMBuildCall(
-        builder,
-        exit,
-        ptr::null_mut(),
-        0,
-        c_str.as_ptr(),
-    );
+    LLVMBuildCall(builder, exit, ptr::null_mut(), 0, c_str.as_ptr());
 }
 
 pub unsafe fn compile(input: &Path, output: &Path, bc_output: Option<&Path>) -> Result<()> {

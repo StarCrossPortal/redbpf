@@ -235,7 +235,7 @@ fn main() {
         let target_dir = m
             .value_of("TARGET_DIR")
             .map(PathBuf::from)
-            .unwrap_or_else(||current_dir.join("target"));
+            .unwrap_or_else(|| current_dir.join("target"));
         let programs = m
             .values_of("NAME")
             .map(|i| i.map(String::from).collect())

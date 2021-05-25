@@ -110,6 +110,7 @@ pub enum Program {
     URetProbe(UProbe),
     SocketFilter(SocketFilter),
     TracePoint(TracePoint),
+    RawTracePoint(RawTracePoint),
     XDP(XDP),
     StreamParser(StreamParser),
     StreamVerdict(StreamVerdict),
@@ -138,9 +139,16 @@ pub struct SocketFilter {
     common: ProgramData,
 }
 
+/// Type to work with `tracepoint`.
 pub struct TracePoint {
     common: ProgramData,
 }
+
+/// Type to work with `raw_tracepoint`.
+pub struct RawTracePoint {
+    common: ProgramData,
+}
+
 /// Type to work with `XDP` programs.
 pub struct XDP {
     common: ProgramData,
@@ -279,6 +287,7 @@ impl Program {
                 attach_type: ProbeAttachType::Return,
             }),
             "tracepoint" => Program::TracePoint(TracePoint { common }),
+            "raw_tracepoint" => Program::RawTracePoint(RawTracePoint { common }),
             "socketfilter" => Program::SocketFilter(SocketFilter { common }),
             "xdp" => Program::XDP(XDP {
                 common,
@@ -300,6 +309,7 @@ impl Program {
             XDP(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_XDP,
             SocketFilter(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER,
             TracePoint(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT,
+            RawTracePoint(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_RAW_TRACEPOINT,
             StreamParser(_) | StreamVerdict(_) => bpf_sys::bpf_prog_type_BPF_PROG_TYPE_SK_SKB,
         }
     }
@@ -313,6 +323,7 @@ impl Program {
             XDP(p) => &p.common,
             SocketFilter(p) => &p.common,
             TracePoint(p) => &p.common,
+            RawTracePoint(p) => &p.common,
             StreamParser(p) => &p.common,
             StreamVerdict(p) => &p.common,
         }
@@ -327,6 +338,7 @@ impl Program {
             XDP(p) => &mut p.common,
             SocketFilter(p) => &mut p.common,
             TracePoint(p) => &mut p.common,
+            RawTracePoint(p) => &mut p.common,
             StreamParser(p) => &mut p.common,
             StreamVerdict(p) => &mut p.common,
         }
@@ -371,8 +383,8 @@ impl Program {
         attr.insns = self.data().code.as_ptr();
         attr.insns_cnt = self.data().code.len() as u64;
         attr.license = clicense.as_ptr();
-        attr.__bindgen_anon_1.kern_version = kernel_version;
-        attr.log_level = 1;
+        attr.__bindgen_anon_1.kern_version = kernel_version as u32;
+        attr.log_level = 0;
 
         unsafe {
             let mut buf_vec = vec![0; 64 * 1024];
@@ -501,6 +513,23 @@ impl TracePoint {
         unsafe {
             let pfd = perf::open_tracepoint_perf_event(category, name)?;
             perf::attach_perf_event(fd, pfd)
+        }
+    }
+
+    pub fn name(&self) -> String {
+        self.common.name.to_string()
+    }
+}
+
+impl RawTracePoint {
+    pub fn attach_raw_tracepoint(&mut self, name: &str) -> Result<()> {
+        let fd = self.common.fd.ok_or(Error::ProgramNotLoaded)?;
+        let cname = CString::new(name)?;
+        let ret = unsafe { bpf_sys::bpf_raw_tracepoint_open(cname.as_ptr(), fd) };
+        if ret < 0 {
+            Err(Error::BPF)
+        } else {
+            Ok(())
         }
     }
 
@@ -706,6 +735,7 @@ impl Module {
                 | (hdr::SHT_PROGBITS, Some(kind @ "kretprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "uprobe"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "uretprobe"), Some(name))
+                | (hdr::SHT_PROGBITS, Some(kind @ "raw_tracepoint"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "xdp"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "socketfilter"), Some(name))
                 | (hdr::SHT_PROGBITS, Some(kind @ "streamparser"), Some(name))
@@ -769,6 +799,22 @@ impl Module {
         use Program::*;
         self.programs.iter_mut().filter_map(|prog| match prog {
             UProbe(p) | URetProbe(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn raw_tracepoints(&self) -> impl Iterator<Item = &RawTracePoint> {
+        use Program::*;
+        self.programs.iter().filter_map(|prog| match prog {
+            RawTracePoint(p) => Some(p),
+            _ => None,
+        })
+    }
+
+    pub fn raw_tracepoints_mut(&mut self) -> impl Iterator<Item = &mut RawTracePoint> {
+        use Program::*;
+        self.programs.iter_mut().filter_map(|prog| match prog {
+            RawTracePoint(p) => Some(p),
             _ => None,
         })
     }

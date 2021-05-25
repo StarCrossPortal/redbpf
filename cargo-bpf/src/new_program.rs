@@ -5,10 +5,10 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+use crate::CommandError;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
-use crate::CommandError;
 
 impl From<toml_edit::Value> for CommandError {
     fn from(error: toml_edit::Value) -> CommandError {
